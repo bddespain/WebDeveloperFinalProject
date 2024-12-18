@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Page</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #222;
+        }
+        #gameCanvas {
+            display: block;
+            margin: 0 auto;
+            background-color: #000;
+        }
+        .scoreboard, .game-over {
+            color: white;
+            position: absolute;
+            font-size: 20px;
+        }
+        .scoreboard {
+            top: 10px;
+            left: 10px;
+        }
+        .level {
+            color: white;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 20px;
+        }
+        .game-over {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 30px;
+            text-align: center;
+            display: none;
+        }
+        .popup {
+            padding: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            border: 1px solid #fff;
+            color: white;
+            font-size: 20px;
+            text-align: center;
+            position: fixed;
+            top: 40%;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+        }
+        .popup button {
+            background-color: #f00;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .links {
+            position: absolute;
+            bottom: 10px; /* Position it at the bottom of the page */
+            left: 50%;
+            transform: translateX(-50%); /* Center the links */
+            text-align: center;
+            width: 100%;
+        }
+        .link {
+            display: inline-block;
+            margin: 10px;
+            padding: 10px 20px;
+            background-color: #333;
+            color: white;
+            text-decoration: none;
+            font-size: 18px;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+        .link:hover {
+            background-color: #555;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div class="scoreboard">Score: <span id="score">0</span></div>
+    <div class="level">Level: <span id="level">1</span></div>
+    <div class="game-over" id="game-over">Game Over!</div>
+    <div class="popup" id="popup">
+        <p>Game Over! Do you want to restart?</p>
+        <button onclick="restartGame()">Restart</button>
+    </div>
+    <div class="links">
+        <a href="index.html" class="link">Resume Page</a>
+        <a href="scratch.html" class="link">Scratch Page</a>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let score = 0;
+        let level = 1;
+        let enemies = [];
+        let bullets = [];
+        let gameOver = false;
+
+        const player = { x: canvas.width / 2, y: canvas.height - 50, width: 50, height: 50, speed: 10 };
+
+        const bulletSpeed = 6;
+        let enemySpeed = 1.5; // Base enemy speed
+        let spawnRate = 2000; // Enemy spawn rate in ms
+
+        let canShoot = true;
+        const keys = {}; // Movement tracking
+
+        document.addEventListener('keydown', (e) => keys[e.key] = true);
+        document.addEventListener('keyup', (e) => keys[e.key] = false);
+
+        function fireBullet() {
+            if (canShoot) {
+                bullets.push({ x: player.x + player.width / 2 - 5, y: player.y, width: 10, height: 20 });
+                canShoot = false;
+                setTimeout(() => (canShoot = true), 300); // Cooldown
+            }
+        }
+
+        function movePlayer() {
+            if (keys['ArrowLeft'] && player.x > 0) player.x -= player.speed;
+            if (keys['ArrowRight'] && player.x < canvas.width - player.width) player.x += player.speed;
+            if (keys[' '] || keys['ArrowUp']) fireBullet();
+        }
+
+        function spawnEnemy() {
+            const enemyWidth = 40;
+            const enemyHeight = 40;
+            const xPos = Math.random() * (canvas.width - enemyWidth);
+            const yPos = -enemyHeight;
+
+            enemies.push({ 
+                x: xPos, 
+                y: yPos, 
+                width: enemyWidth, 
+                height: enemyHeight, 
+                speed: enemySpeed 
+            });
+        }
+
+        function updateGame() {
+            if (gameOver) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            movePlayer();
+
+            // Draw player
+            ctx.fillStyle = '#00f';
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+
+            // Update and draw bullets
+            ctx.fillStyle = '#f00';
+            bullets = bullets.filter(bullet => {
+                bullet.y -= bulletSpeed;
+                ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+                return bullet.y > 0;
+            });
+
+            // Update and draw enemies
+            ctx.fillStyle = '#f00';
+            enemies = enemies.filter(enemy => {
+                enemy.y += enemy.speed;
+                ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+
+                // Check collision with bullets
+                for (let i = 0; i < bullets.length; i++) {
+                    const bullet = bullets[i];
+                    if (
+                        bullet.x < enemy.x + enemy.width &&
+                        bullet.x + bullet.width > enemy.x &&
+                        bullet.y < enemy.y + enemy.height &&
+                        bullet.y + bullet.height > enemy.y
+                    ) {
+                        bullets.splice(i, 1);
+                        score++;
+                        if (score % 10 === 0) levelUp();
+                        return false; // Remove enemy
+                    }
+                }
+
+                // End game if enemy reaches bottom
+                if (enemy.y > canvas.height) {
+                    gameOver = true;
+                    document.getElementById('game-over').style.display = 'block';
+                    document.getElementById('popup').style.display = 'block';
+                }
+
+                return true; // Keep enemy
+            });
+
+            // Update HUD
+            document.getElementById('score').textContent = score;
+            document.getElementById('level').textContent = level;
+
+            requestAnimationFrame(updateGame);
+        }
+
+        function levelUp() {
+            level++;
+            enemySpeed += 0.5; // Increase enemy speed
+            spawnRate = Math.max(500, spawnRate - 200); // Decrease spawn rate (min 500ms)
+
+            clearInterval(spawnInterval);
+            spawnInterval = setInterval(spawnEnemy, spawnRate);
+        }
+
+        function restartGame() {
+            score = 0;
+            level = 1;
+            enemies = [];
+            bullets = [];
+            player.x = canvas.width / 2;
+            gameOver = false;
+            enemySpeed = 1.5;
+            spawnRate = 2000;
+
+            document.getElementById('game-over').style.display = 'none';
+            document.getElementById('popup').style.display = 'none';
+
+            clearInterval(spawnInterval);
+            spawnInterval = setInterval(spawnEnemy, spawnRate);
+            updateGame();
+        }
+
+        let spawnInterval = setInterval(spawnEnemy, spawnRate);
+        updateGame();
+    </script>
+</body>
+</html>
